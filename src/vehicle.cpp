@@ -4,28 +4,21 @@
 
 #include <vector>
 #include <cmath>
-#include <iostream>
 #include "vehicle.h"
 #include "waypoints.h"
 
 using namespace::std;
 
-Vehicle::Vehicle(double id, double x, double y, double vx, double vy, double fs, double fd) {
-    this->id = id;
-    this->x = x;
-    this->y = y;
-    this->vx = vx;
-    this->vy = vy;
-    this->s = fs;
-    this->d = fd;
-}
-
-Vehicle* Vehicle::getNextVehicleInLane(vector <Vehicle> vehicles, int lane) {
+/**
+ * Get the next vehicle in the current lane
+ * @param vehicles - The list of all vehicles we have
+ * @param lane - The current lane we're looking at
+ * @return the vehicle that is directly in front of the ego car.  Or Null
+ */
+Vehicle* Vehicle::getNextVehicleInLane(vector <Vehicle> &vehicles, int lane) {
     Vehicle *closest = nullptr;
     double distance = std::numeric_limits<double>::max();
     for (auto &v : vehicles) {
-        cout << "Car: " << v.getID() << " S: " << v.getS() << " D: " << v.getD() << " lane: " << v.getLane() << endl;
-
         if (v.inLane(lane)) {
             double v_dist = getDistance(v.getS());
             if (v_dist < distance) {
@@ -34,23 +27,47 @@ Vehicle* Vehicle::getNextVehicleInLane(vector <Vehicle> vehicles, int lane) {
             }
         }
     }
-
     return closest;
 }
 
+/**
+ * Grab the distance between the current vehicle and the passed in S value
+ * @param s - S to get distance to
+ * @return Distance to S
+ */
 double Vehicle::getDistance(double s) {
-    if (s < this->s) {
+    if (s < (this->s - CAR_SIZE)) {
         s += Waypoints::TRACK_SIZE;
     }
-    if (s < this->s) {
-        cout << "WTF? " << s << endl;
-    }
-
     return s - this->s;
 }
 
+/**
+ * Grab the distance between two vehicles
+ * @param vehicle - The vehicle to compare against
+ * @return distance
+ */
 double Vehicle::getDistance(Vehicle vehicle) {
     return getDistance(vehicle.getS());
+}
+
+/**
+ * Grab the distance between the current vehicle and the next one in the passed in lane
+ * @param vehicles - List of all vehicles to compare against
+ * @param lane - Lane to filter out
+ * @return distance to the next vehicle
+ */
+double Vehicle::getDistanceToNextVehicleInLane(vector <Vehicle> &vehicles, int lane) {
+    if (lane < 0 || lane >= Waypoints::MAX_LANES) {
+        return -1;
+    }
+
+    Vehicle *v = getNextVehicleInLane(vehicles, lane);
+    double distance = Waypoints::TRACK_SIZE;
+    if (v != nullptr) {
+        distance = getDistance(*v);
+    }
+    return distance;
 }
 
 double Vehicle::getID() const {

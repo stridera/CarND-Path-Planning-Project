@@ -28,9 +28,10 @@ public:
     std::vector<double> getFrenet(double x, double y, double theta);
     std::vector<double> getXY(double s, double d);
 
+public: // Constants
     // The max s value before wrapping around the track back to 0
-
-    constexpr   static const double TRACK_SIZE = 6945.554;
+    constexpr static const double TRACK_SIZE = 6945.554;
+    constexpr static const int MAX_LANES = 3;
 
     /*
      * Math Helpers

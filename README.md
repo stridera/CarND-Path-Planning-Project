@@ -1,6 +1,27 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
    
+## Path-Finding Model
+My model is fairly simple:
+1. First we need to figure out what lane and velocity we want.
+  ..*  We look ahead 50m for other cars.  If there are no other cars, we accelerate until we hit our target speed.
+  ..*  If there is a car ahead, we look at the adjacent lanes.  If either are free, we add a new target lane.  If not, we slow down depending on how close we are to the car ahead of us.
+2. Next we generate the path.  In the simplest form, we basically take the cars current position, and using the map, find a set of points ahead of the car where we want to go.  This path is full of hard edges, so we map it to a spline, which creates a nice polynomial shape, and then use that path instead.
+
+## Example Video
+You can view an example of the project [here](https://youtu.be/CT5tgf5mrOM).
+
+The video shows the car driving for 6 miles.  It changes lanes smoothly, slows down when behind other cars, and handles pretty well.
+
+## Other Notes
+I attempted to make this project as clean as possible.  Instead of having everything in one file, I created classes to handle each object:
+* path_planner: This class is the heart of the code and actually does the path planning.
+* waypoints: This class handles all the map waypoints.
+* vehicle: This class handles the vehicles.  Most notable, it handles the distance between a vehicle and other vehicles.
+
+   
+## Original Readme
+   
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
 

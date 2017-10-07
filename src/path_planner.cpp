@@ -4,87 +4,48 @@
 
 #include "path_planner.h"
 
-#include <vector>
-#include <cmath>
-#include <iostream>
-#include "spline.h"
-#include "vehicle.h"
-#include "waypoints.h"
-
-using namespace::std;
-
-const double dist_inc = 0.5;
-const double max_inc = 50;
-
-Path_Planner::Path_Planner()
-{
-    velocity = 30; // We start stopped
-    currentState = STAY_IN_LANE; // initial state is to stay in the lane
-}
+using namespace ::std;
 
 void Path_Planner::update(Vehicle me, vector<double> previous_path_x, vector<double> previous_path_y, double end_path_s,
                           double end_path_d, vector<Vehicle> vehicles) {
-    // Always start the new path where the car is already headed
-    if (previous_path_x.size() > 0) {
-        me.setS(end_path_s);
-        me.setD(end_path_d);
-    }
+    // Start with a clean slate.
     next_x_vals.clear();
     next_y_vals.clear();
 
-    switch (currentState) {
-        case STAY_IN_LANE: {
-            // First, lets make sure there isn't a vehicle in front of us
-            Vehicle *v = me.getNextVehicleInLane(vehicles, me.getLane());
-            double distance = -1;
-            double next_car_s = -1;
-            double id = -1;
-            double lane = -1;
-            if (v != nullptr) {
-                distance = me.getDistance(*v);
-                next_car_s = v->getS();
-                id = v->getID();
-                lane = v->getLane();
-            }
-            cout << "(" << me.getS() << "," << next_car_s << ") id: " << id << " Distance to next car: "
-                 << distance << " Lane: " << me.getLane() << ", " << lane << endl;
+    // First, lets make sure there isn't a vehicle in front of us
+    int currentLane = me.getLane();
+    int targetLane = currentLane;
 
-            // Lets drive straight ahead
-            // List of widely spaced waypoints, will be using this for interpolation using spline
+    double distance = me.getDistanceToNextVehicleInLane(vehicles, currentLane);
 
-            if (distance > 5) {
+    if (distance > MAX_DISTANCE) {
+        // Nothing ahead of us.  Fly like the wind!
+        velocity += 0.03;
+    } else {
+        // If we here, we're approaching another car.  My tactic here is to check the lanes nearby and if there
+        // is more space in that lane, we'll cross over.  Otherwise, we'll begin to slow down depending on how
+        // close we are to the car.
+        // TODO: Consider all lanes.  It would be nice at some points to do multiple lane changes to get open road.
+        double rightDistance = me.getDistanceToNextVehicleInLane(vehicles, currentLane + 1);
+        double leftDistance = me.getDistanceToNextVehicleInLane(vehicles, currentLane - 1);
 
-
-    //            classroom_approach(me, previous_path_x, previous_path_y, end_path_s, end_path_d, vehicles);
-                iterative_approach(me, previous_path_x, previous_path_y, end_path_s, end_path_d, vehicles);
-            }
-
-//            cout << "X: ";
-//            for (int j = 0; j < next_x_vals.size(); ++j) {
-//                cout << next_x_vals[j] << " ";
-//            }
-//            cout << endl << "Y: ";
-//            for (int j = 0; j < next_y_vals.size(); ++j) {
-//                cout << next_y_vals[j] << " ";
-//            }
-//            cout << endl;
-            break;
+        if (rightDistance > distance && rightDistance > leftDistance) {
+            targetLane = currentLane + 1;
+        } else if (leftDistance > distance && leftDistance > rightDistance) {
+            targetLane = currentLane - 1;
+        } else {
+            // Map the velocity to the distance.
+            velocity = (MAX_VELOCITY / MAX_DISTANCE) * distance;
         }
-        case PREPARE_TO_CHANGE_LANE_LEFT:
-            break;
-        case CHANGE_LANE_LEFT:
-            break;
-        case PREPARE_TO_CHANGE_LANE_RIGHT:
-            break;
-        case CHANGE_LANE_RIGHT:
-            break;
     }
+    // This is just to prevent the car from going too fast or too slow.  (Causes problems with the spline)
+    velocity = clamp(velocity, 1.0, MAX_VELOCITY);
 
-
-
-
+    // Now we have a good idea which lane we want to be in.  Lets go there!
+    generate_path(me, previous_path_x, previous_path_y, end_path_s, end_path_d, targetLane);
 }
 
+// Functions to access the path.
 vector<double> Path_Planner::get_next_x() {
     return next_x_vals;
 }
@@ -93,22 +54,33 @@ std::vector<double> Path_Planner::get_next_y() {
     return next_y_vals;
 }
 
-void Path_Planner::classroom_approach(Vehicle me, vector<double> previous_path_x, vector<double> previous_path_y,
-                                      double end_path_s, double end_path_d, vector<Vehicle> vehicles) {
+/**
+ * Generate the path from where the car currently is (including the already calculated path from prior runs)
+ * to where we want to be.  This takes the current location, finds where it should be using the lane paramater,
+ * and then maps out a path for the car to follow.  This follows much of the explanation given in the project
+ * video and the class.
+ */
+void Path_Planner::generate_path(Vehicle me, vector<double> previous_path_x, vector<double> previous_path_y,
+                                 double end_path_s, double end_path_d, int lane) {
+    // First, lets build a very rough path that we want to follow
     vector<double> ptsx;
     vector<double> ptsy;
 
     int prev_size = previous_path_x.size();
+
+    double car_s = me.getS();
+    double car_d = me.getD();
+    double car_yaw = me.getVx();
+
     double ref_x = me.getX();
     double ref_y = me.getY();
-    double ref_yaw = Waypoints::deg2rad(me.getVx());
-    double car_s = me.getS();
-    double lane = me.getLane();
+    double ref_yaw = waypoints.deg2rad(car_yaw);
 
-    if(prev_size<2){
-
-        double pre_car_x = me.getX() - cos(me.getVx());
-        double pre_car_y = me.getY() - sin(me.getVx());
+    if (prev_size < 2) {
+        // If we're here, most likely we're on our first run.  Lets add the cars current position and a little behind us
+        // so we can have a smooth start.
+        double pre_car_x = me.getX() - cos(car_yaw);
+        double pre_car_y = me.getY() - sin(car_yaw);
 
         ptsx.push_back(pre_car_x);
         ptsx.push_back(me.getX());
@@ -116,12 +88,32 @@ void Path_Planner::classroom_approach(Vehicle me, vector<double> previous_path_x
         ptsy.push_back(pre_car_y);
         ptsy.push_back(me.getY());
     } else {
-        return;
+        // Here we have a path that the car is already running from prior iterations.  We want to keep that path and only
+        // add onto it.  This prevents the car from jerking around or 'teleporting' to new locations.
+        car_s = end_path_s;
+        car_d = end_path_d;
+
+        ref_x = previous_path_x[prev_size - 1];
+        ref_y = previous_path_y[prev_size - 1];
+
+        double ref_x_prev = previous_path_x[prev_size - 2];
+        double ref_y_prev = previous_path_y[prev_size - 2];
+
+        ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+
+        ptsx.push_back(ref_x_prev);
+        ptsx.push_back(ref_x);
+
+        ptsy.push_back(ref_y_prev);
+        ptsy.push_back(ref_y);
     }
 
-    vector<double> next_wp0 = waypoints.getXY(car_s+30,(2+ 4*lane));
-    vector<double> next_wp1 = waypoints.getXY(car_s+60,(2+ 4*lane));
-    vector<double> next_wp2 = waypoints.getXY(car_s+90,(2+ 4*lane));
+    // Now that we have a starting point, lets plan where we want the car to be.  We choose 30 point increments to ensure
+    // there is enough room for lane changes to happen w/o the jump being too quick (and jerky) while still following the
+    // road.
+    vector<double> next_wp0 = waypoints.getXY(car_s + 30, 2 + 4 * lane);
+    vector<double> next_wp1 = waypoints.getXY(car_s + 60, 2 + 4 * lane);
+    vector<double> next_wp2 = waypoints.getXY(car_s + 90, 2 + 4 * lane);
 
     ptsx.push_back(next_wp0[0]);
     ptsx.push_back(next_wp1[0]);
@@ -131,68 +123,57 @@ void Path_Planner::classroom_approach(Vehicle me, vector<double> previous_path_x
     ptsy.push_back(next_wp1[1]);
     ptsy.push_back(next_wp2[1]);
 
+    // Now we shift car coordinates to 0 degrees so we don't break the spline  (otherwise everything will be 0 degrees
+    // if we're driving straight ahead and we can't pull out seperate points from the spline
+    for (int i = 0; i < ptsx.size(); i++) {
+        double shift_x = ptsx[i] - ref_x;
+        double shift_y = ptsy[i] - ref_y;
 
-    for(int i=0;i<ptsx.size();i++){
-        // shift car reference angle to 0 degrees
-        double shift_x = ptsx[i]-ref_x;
-        double shift_y = ptsy[i]-ref_y;
-
-        ptsx[i] = (shift_x *cos(0-ref_yaw)- shift_y*sin(0-ref_yaw));
-        ptsy[i] = (shift_x *sin(0-ref_yaw)+ shift_y*cos(0-ref_yaw));
-
+        ptsx[i] = (shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw));
+        ptsy[i] = (shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw));
     }
 
-    // creating a spline to map the path on
+    // Now we take the path we have, that's full of hard angles and jerks, and smooth it out using a spline
     tk::spline s;
 
     // set x,y points to spline for a polynomial fit
-    s.set_points(ptsx,ptsy);
+    s.set_points(ptsx, ptsy);
 
-    for(int i =0;i<previous_path_x.size();i++){
+    // Now we select a point ahead of us on the smooth path we've created and prepare to map everything between where
+    // the previous path left off and the new path starts.  Arbitrarily select 100m as my farthest point out.
+    double target_x = 100.0;
+    double target_y = s(target_x);
+    double target_dist = sqrt((target_x) * (target_x) + (target_y) * (target_y));
+
+    // Now we have our smooth path calculated, we're ready to generate the path.  First, lets add the previous points to
+    // the final path and then we'll continue from there.
+    for (int i = 0; i < previous_path_x.size(); i++) {
         next_x_vals.push_back(previous_path_x[i]);
         next_y_vals.push_back(previous_path_y[i]);
     }
 
-    double target_x = 50.0;
-    double target_y = s(target_x);
-    double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y));
-
+    // Fill up the remaining points for our path (arbitrarily considering 50 points)
     double x_add_on = 0;
-
-    // Fill up the remaining points for our path planner (considering 50 points now )
-    for(int i = 1; i <= 50-previous_path_x.size(); i++){
-
-        double N = (target_dist/(0.02*velocity/2.24));
-        double x_point = x_add_on +	(target_x) / N;
+    for (int i = 1; i <= 50 - previous_path_x.size(); i++) {
+        // For each step, get the distance ahead of the last point.  The faster we're going (velocity) the more
+        // space between points.
+        double N = (target_dist / (0.2 * velocity / 2.24));
+        double x_point = x_add_on + target_x / N;
         double y_point = s(x_point);
         x_add_on = x_point;
 
         double x_ref = x_point;
         double y_ref = y_point;
 
-        // rotate back to normal
-        x_point = (x_ref*cos(me.getVx())-y_ref*sin(me.getVx()));
-        y_point = (x_ref*sin(me.getVx())+y_ref*cos(me.getVx()));
+        // Bring this back to the initial rotation that the simulator expects
+        x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw));
+        y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw));
 
-        x_point += me.getX();
-        y_point += me.getY();
+        x_point += ref_x;
+        y_point += ref_y;
 
+        // Finally, we add the points to the route.
         next_x_vals.push_back(x_point);
         next_y_vals.push_back(y_point);
     }
 }
-
-void Path_Planner::iterative_approach(Vehicle me, vector<double> previous_path_x, vector<double> previous_path_y, double end_path_s,
-                                      double end_path_d, vector<Vehicle> vehicles) {
-    double car_s = me.getS();
-    double car_d = me.getD();
-
-    next_x_vals.clear();
-    next_y_vals.clear();
-    for (int i = 0; i < 50; i++) {
-        vector<double> wp = waypoints.getXY(car_s+(0.1 * i),car_d);
-        next_x_vals.push_back(wp[0]);
-        next_y_vals.push_back(wp[1]);
-    }
-}
-

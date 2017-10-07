@@ -11,6 +11,7 @@
 using namespace std;
 
 Waypoints::Waypoints() {
+    // Grab all waypoints from the file and use this to inform the app of our world.
     ifstream in_map_(map_file_.c_str(), ifstream::in);
 
     string line;

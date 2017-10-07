@@ -75,8 +75,10 @@ int main() {
                     // Sensor Fusion Data, a list of all other cars on the same side of the road.
                     auto sensor_fusion = j[1]["sensor_fusion"];
 
-                    Vehicle me(-1, car_x, car_y, car_yaw, car_speed, car_s + ((double) previous_path_x.size() * 0.2 * car_speed), car_d);
+                    // Update our own vehicle into a vehicle object
+                    Vehicle me(-1, car_x, car_y, car_yaw, car_speed, car_s, car_d);
 
+                    // Create a vector of all other vehicles on the road
                     vector<Vehicle> vehicles;
                     for (auto &i : sensor_fusion) {
                         double id = i[0];
@@ -87,13 +89,14 @@ int main() {
                         double fs = i[5];
                         double fd = i[6];
 
-                        vehicles.push_back(Vehicle(id, x, y, vx, vy, fs, fd));
+                        vehicles.emplace_back(id, x, y, vx, vy, fs, fd);
                     }
 
-                    json msgJson;
-
+                    // Update our path planner with current data
                     path_planner.update(me, previous_path_x, previous_path_y, end_path_s, end_path_d, vehicles);
 
+                    // Write the new path to the json to send to the simulator
+                    json msgJson;
                     msgJson["next_x"] = path_planner.get_next_x();
                     msgJson["next_y"] = path_planner.get_next_y();
 

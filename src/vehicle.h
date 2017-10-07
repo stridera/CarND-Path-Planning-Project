@@ -7,6 +7,8 @@
 
 
 class Vehicle {
+private: // Constants
+    const double CAR_SIZE = 10;
 private:
     double id; // car's unique ID,
     double x;  // car's x position in map coordinates,
@@ -17,17 +19,18 @@ private:
     double d;  // car's d position in frenet coordinates.
 
 public:
-    Vehicle(double id, double x, double y, double vx, double vy, double fs, double fd);
+    Vehicle(double id, double x, double y, double vx, double vy, double fs, double fd) :
+            id(id), x(x), y(y), vx(vx), vy(vy), s(fs), d(fd) {};
 
     // Setters
     void setS(double s);
+
     void setD(double d);
 
     // Functions
-    double getDistance(double d);
     int getLane();
+
     bool inLane(int i);
-    Vehicle * getNextVehicleInLane(std::vector <Vehicle> vehicles, int lane);
 
     double getID() const;
 
@@ -43,9 +46,15 @@ public:
 
     double getD() const;
 
+    double getSpeed();
+
+    double getDistance(double d);
+
     double getDistance(Vehicle vehicle);
 
-    double getSpeed();
+    Vehicle *getNextVehicleInLane(std::vector<Vehicle> &vehicles, int lane);
+
+    double getDistanceToNextVehicleInLane(std::vector<Vehicle> &vehicles, int lane);
 };
 
 
