@@ -6,6 +6,7 @@
 #include <cmath>
 #include "vehicle.h"
 #include "waypoints.h"
+#include <limits>
 
 using namespace::std;
 
