@@ -4,9 +4,9 @@ Self-Driving Car Engineer Nanodegree Program
 ## Path-Finding Model
 My model is fairly simple:
 1. First we need to figure out what lane and velocity we want.
-  ..*  We look ahead 50m for other cars.  If there are no other cars, we accelerate until we hit our target speed.
-  ..*  If there is a car ahead, we look at the adjacent lanes.  If either are free, we add a new target lane.  If not, we slow down depending on how close we are to the car ahead of us.
-2. Next we generate the path.  In the simplest form, we basically take the cars current position, and using the map, find a set of points ahead of the car where we want to go.  This path is full of hard edges, so we map it to a spline, which creates a nice polynomial shape, and then use that path instead.
+    1.  We look ahead 50m for other cars.  If there are no other cars, we accelerate until we hit our target speed.
+    1.  If there is a car ahead, we look at the adjacent lanes.  If either are free, we add a new target lane.  If not, we slow down depending on how close we are to the car ahead of us.
+1. Next we generate the path.  In the simplest form, we basically take the cars current position, and using the map, find a set of points ahead of the car where we want to go.  This path is full of hard edges, so we map it to a spline, which creates a nice polynomial shape, and then use that path instead.
 
 ## Example Video
 You can view an example of the project [here](https://youtu.be/CT5tgf5mrOM).
