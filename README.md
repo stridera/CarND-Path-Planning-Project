@@ -9,7 +9,7 @@ My model is fairly simple:
 1. Next we generate the path.  In the simplest form, we basically take the cars current position, and using the map, find a set of points ahead of the car where we want to go.  This path is full of hard edges, so we map it to a spline, which creates a nice polynomial shape, and then use that path instead.
 
 ## Example Video
-You can view an example of the project [here](https://youtu.be/CT5tgf5mrOM).
+[![Project Video](https://img.youtube.com/vi/CT5tgf5mrOM/0.jpg)](https://www.youtube.com/watch?v=CT5tgf5mrOM)
 
 The video shows the car driving for 6 miles.  It changes lanes smoothly, slows down when behind other cars, and handles pretty well.
 
